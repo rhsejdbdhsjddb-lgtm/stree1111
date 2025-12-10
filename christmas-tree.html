@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grand Luxury Interactive Christmas Tree</title>
+    <style>
+        :root {
+            --gold: #FFD700;
+            --glass-bg: rgba(20, 20, 20, 0.6);
+            --glass-border: 1px solid rgba(255, 215, 0, 0.3);
+            --emerald: #004422;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Cinzel', 'Segoe UI', serif; /* 衬线体增加奢华感 */
+            color: #eee;
+        }
+
+        /* Loading Screen */
+        #loader {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000502;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 1s ease-out;
+        }
+
+        .spinner {
+            width: 60px; height: 60px;
+            border: 3px solid rgba(255, 215, 0, 0.2);
+            border-top: 3px solid var(--gold);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+            box-shadow: 0 0 15px var(--gold);
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* UI Overlay */
+        #ui-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 500px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: var(--glass-border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 100;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            transition: opacity 0.5s;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 14px;
+            color: var(--gold);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,215,0,0.2);
+            padding-bottom: 10px;
+        }
+
+        .status-text {
+            font-size: 12px;
+            text-align: center;
+            color: #ccc;
+            min-height: 1.5em;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+
+        /* Custom Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px; width: 16px;
+            border-radius: 50%;
+            background: var(--gold);
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px var(--gold);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+        }
+
+        /* Button */
+        .btn-upload {
+            background: rgba(255, 215, 0, 0.1);
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            font-family: inherit;
+        }
+        .btn-upload:hover {
+            background: var(--gold);
+            color: #000;
+            box-shadow: 0 0 15px var(--gold);
+        }
+
+        input[type="file"] { display: none; }
+
+        /* Video Input Hidden (Analysis only) */
+        #input-video {
+            position: absolute;
+            top: 0; left: 0;
+            opacity: 0;
+            pointer-events: none;
+            width: 1px; height: 1px;
+        }
+        
+        #error-msg {
+            color: #ff4444;
+            font-size: 10px;
+            text-align: center;
+            display: none;
+        }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://esm.sh/three@0.160.0",
+            "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <div style="color:var(--gold); font-size: 12px; letter-spacing: 2px;">INITIALIZING LUXURY EXPERIENCE</div>
+    </div>
+
+    <video id="input-video" playsinline></video>
+
+    <div id="ui-panel">
+        <h1>Grand Interactive Christmas Tree</h1>
+        
+        <div class="status-text" id="status">State: FORMED</div>
+        
+        <div class="controls">
+            <span style="font-size: 10px; color: #888;">FORMED</span>
+            <input type="range" id="chaos-slider" min="0" max="1" step="0.01" value="0">
+            <span style="font-size: 10px; color: #888;">CHAOS</span>
+        </div>
+
+        <div style="display: flex; justify-content: center; gap: 10px;">
+             <label class="btn-upload">
+                + Upload Photo
+                <input type="file" id="upload-input" accept="image/*" multiple>
+            </label>
+        </div>
+        <div id="error-msg"></div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+        // --- Configuration ---
+        const CONFIG = {
+            colors: {
+                emeraldStart: new THREE.Color('#002211'),
+                emeraldEnd: new THREE.Color('#004422'),
+                gold: new THREE.Color('#FFD700'),
+                red: new THREE.Color('#D40000'),
+                silver: new THREE.Color('#E0E0E0')
+            },
+            particleCount: 25000,
+            treeHeight: 60,
+            treeRadius: 25,
+            chaosRadius: 80
+        };
+
+        // --- Global State ---
+        const state = {
+            targetProgress: 0, // 0 = Formed, 1 = Chaos
+            actualProgress: {
+                foliage: 0,
+                ornaments: 0,
+                gifts: 0,
+                photos: 0
+            },
+            handActive: false,
+            rotationOffset: 0
+        };
+
+        // --- App Setup ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.005);
+        
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 500);
+        camera.position.set(0, 20, 100);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.5;
+        controls.maxDistance = 200;
+
+        // --- Post Processing (Bloom) ---
+        const renderScene = new RenderPass(scene, camera);
+        
+        // Strength 1.5, Radius 0.5, Threshold 0.75 as requested
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.5, 0.75);
+        
+        const outputPass = new OutputPass();
+
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+        composer.addPass(outputPass);
+
+        // --- Lighting & Environment ---
+        async function setupEnvironment() {
+            try {
+                const rgbeLoader = new RGBELoader();
+                // Using a high quality public HDRI (Royal Esplanade style)
+                const texture = await rgbeLoader.loadAsync('https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/royal_esplanade_1k.hdr');
+                texture.mapping = THREE.EquirectangularReflectionMapping;
+                scene.environment = texture;
+                // scene.background = texture; // Keep background black as requested
+                scene.background = new THREE.Color(0x020202); 
+            } catch (e) {
+                console.warn("HDRI Load Failed, falling back to lights", e);
+                // Fallback Lighting
+                const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+                scene.add(ambient);
+                const dirLight = new THREE.DirectionalLight(0xffd700, 2);
+                dirLight.position.set(10, 20, 10);
+                scene.add(dirLight);
+                const spotLight = new THREE.SpotLight(0xffffff, 5);
+                spotLight.position.set(0, 50, 0);
+                scene.add(spotLight);
+            }
+
+            // Starfield Background
+            const starsGeo = new THREE.BufferGeometry();
+            const starsPos = [];
+            for(let i=0; i<3000; i++) {
+                const r = 100 + Math.random() * 200;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                starsPos.push(r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
+            }
+            starsGeo.setAttribute('position', new THREE.Float32BufferAttribute(starsPos, 3));
+            const starsMat = new THREE.PointsMaterial({color: 0x888888, size: 0.5, transparent: true, opacity: 0.8});
+            scene.add(new THREE.Points(starsGeo, starsMat));
+        }
+
+        // --- System 1: Foliage (Particles) ---
+        let foliageSystem;
+        function createFoliage() {
+            const geometry = new THREE.BufferGeometry();
+            const posStart = []; // Cone
+            const posEnd = [];   // Sphere
+            const speeds = [];
+            const colors = [];
+
+            for(let i=0; i<CONFIG.particleCount; i++) {
+                // Formed: Cone
+                const y = Math.random() * CONFIG.treeHeight - (CONFIG.treeHeight/2); // -30 to 30
+                const percentHeight = 1 - (y + CONFIG.treeHeight/2) / CONFIG.treeHeight; // 1 at bottom, 0 at top
+                const r = percentHeight * CONFIG.treeRadius * Math.sqrt(Math.random()); // distribute evenly in circle
+                const theta = Math.random() * Math.PI * 2;
+                
+                posStart.push(r * Math.cos(theta), y, r * Math.sin(theta));
+
+                // Chaos: Random Sphere
+                const cr = CONFIG.chaosRadius * Math.cbrt(Math.random());
+                const cTheta = Math.random() * Math.PI * 2;
+                const cPhi = Math.acos(2 * Math.random() - 1);
+                posEnd.push(cr * Math.sin(cPhi) * Math.cos(cTheta), cr * Math.sin(cPhi) * Math.sin(cTheta), cr * Math.cos(cPhi));
+
+                speeds.push(Math.random() * 0.5 + 0.5); // 0.5 to 1.0
+
+                // Glittering emerald colors
+                const col = CONFIG.colors.emeraldStart.clone().lerp(CONFIG.colors.emeraldEnd, Math.random());
+                if (Math.random() > 0.9) col.setHex(0xFFFFFF); // Sparkle
+                colors.push(col.r, col.g, col.b);
+            }
+
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(posStart, 3)); // Current pos (driven by shader)
+            geometry.setAttribute('aStart', new THREE.Float32BufferAttribute(posStart, 3));
+            geometry.setAttribute('aEnd', new THREE.Float32BufferAttribute(posEnd, 3));
+            geometry.setAttribute('aSpeed', new THREE.Float32BufferAttribute(speeds, 1));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+            const material = new THREE.ShaderMaterial({
+                vertexShader: `
+                    uniform float uProgress;
+                    uniform float uTime;
+                    attribute vec3 aStart;
+                    attribute vec3 aEnd;
+                    attribute float aSpeed;
+                    attribute vec3 color;
+                    varying vec3 vColor;
+                    void main() {
+                        vColor = color;
+                        // Weighted Lerp logic in Shader
+                        float localProgress = smoothstep(0.0, 1.0, uProgress * (0.8 + aSpeed * 0.4));
+                        vec3 pos = mix(aStart, aEnd, localProgress);
+                        
+                        // Add some noise/twinkle movement
+                        pos.y += sin(uTime * 2.0 + pos.x) * 0.5 * uProgress;
+
+                        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                        gl_PointSize = (3.0 + sin(uTime * 5.0 + pos.x)*1.0) * (100.0 / -mvPosition.z);
+                        gl_Position = projectionMatrix * mvPosition;
+                    }
+                `,
+                fragmentShader: `
+                    varying vec3 vColor;
+                    void main() {
+                        // Soft circle particle
+                        vec2 uv = gl_PointCoord.xy - 0.5;
+                        float d = length(uv);
+                        if (d > 0.5) discard;
+                        gl_FragColor = vec4(vColor, 1.0 - d*1.5); // Gradient alpha
+                    }
+                `,
+                uniforms: {
+                    uProgress: { value: 0 },
+                    uTime: { value: 0 }
+                },
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+
+            foliageSystem = new THREE.Points(geometry, material);
+            scene.add(foliageSystem);
+        }
+
+        // --- System 2: Ornaments (InstancedMesh) ---
+        const ornaments = [];
+        function createOrnaments() {
+            // Types: Sphere (Ball), Box (Gift)
+            const shapes = [
+                { geo: new THREE.SphereGeometry(1.5, 32, 32), type: 'sphere', count: 150 },
+                { geo: new THREE.BoxGeometry(2.5, 2.5, 2.5), type: 'box', count: 50 } // Chamfered via logic visually
+            ];
+
+            const baseMat = new THREE.MeshStandardMaterial({
+                color: CONFIG.colors.gold,
+                metalness: 0.9,
+                roughness: 0.1,
+                envMapIntensity: 1.0
+            });
+
+            // Modify shader for InstancedMesh interpolation
+            baseMat.onBeforeCompile = (shader) => {
+                shader.uniforms.uProgress = { value: 0 };
+                shader.vertexShader = `
+                    uniform float uProgress;
+                    attribute vec3 aStartPos;
+                    attribute vec3 aEndPos;
+                    attribute vec4 aOrientationStart; // Quaternion
+                    attribute vec4 aOrientationEnd;
+                    ${shader.vertexShader}
+                `.replace(
+                    '#include <begin_vertex>',
+                    `
+                    vec3 transformed = vec3( position );
+                    
+                    float localProgress = smoothstep(0.0, 1.0, uProgress);
+                    
+                    // Mix Position
+                    vec3 pos = mix(aStartPos, aEndPos, localProgress);
+                    
+                    // Mix Orientation (Fast slerp approximation or just mix)
+                    vec4 q = mix(aOrientationStart, aOrientationEnd, localProgress);
+                    
+                    // Apply rotation to local vertex
+                    // (Standard quaternion rotation logic omitted for brevity, using simple transform)
+                    // Simple rotation spin for chaos
+                    if(uProgress > 0.1) {
+                         float angle = uProgress * 3.14 * 2.0;
+                         float s = sin(angle); float c = cos(angle);
+                         // Simple Y spin
+                         float x = transformed.x; float z = transformed.z;
+                         transformed.x = x * c - z * s;
+                         transformed.z = x * s + z * c;
+                    }
+                    
+                    transformed += pos;
+                    `
+                );
+                // Disable standard instance matrix usage for position, use manual transform
+                shader.vertexShader = shader.vertexShader.replace('#include <defaultnormal_vertex>', '');
+                shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', 'vec4 mvPosition = modelViewMatrix * vec4( transformed, 1.0 ); gl_Position = projectionMatrix * mvPosition;');
+                
+                // Store reference to update uniform later
+                baseMat.userData.shader = shader;
+            };
+
+            shapes.forEach((shape, index) => {
+                const mesh = new THREE.InstancedMesh(shape.geo, baseMat.clone(), shape.count);
+                
+                // Data buffers
+                const startPos = new Float32Array(shape.count * 3);
+                const endPos = new Float32Array(shape.count * 3);
+                const orientationStart = new Float32Array(shape.count * 4);
+                const orientationEnd = new Float32Array(shape.count * 4);
+                const colorsArr = new Float32Array(shape.count * 3);
+
+                for (let i = 0; i < shape.count; i++) {
+                    // Start: Spiral on cone
+                    const h = CONFIG.treeHeight;
+                    const y = (i / shape.count) * h - h/2;
+                    const r = (1 - (y + h/2)/h) * CONFIG.treeRadius + 2; // Slightly outside leaves
+                    const theta = i * 0.5; // Spiral
+                    
+                    startPos[i*3] = r * Math.cos(theta);
+                    startPos[i*3+1] = y;
+                    startPos[i*3+2] = r * Math.sin(theta);
+
+                    // End: Chaos
+                    const cr = CONFIG.chaosRadius * 0.8;
+                    const cTheta = Math.random() * Math.PI * 2;
+                    const cPhi = Math.acos(2 * Math.random() - 1);
+                    endPos[i*3] = cr * Math.sin(cPhi) * Math.cos(cTheta);
+                    endPos[i*3+1] = cr * Math.sin(cPhi) * Math.sin(cTheta);
+                    endPos[i*3+2] = cr * Math.cos(cPhi);
+
+                    // Orientation
+                    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random(), Math.random(), Math.random()));
+                    orientationStart[i*4] = q.x; orientationStart[i*4+1] = q.y; orientationStart[i*4+2] = q.z; orientationStart[i*4+3] = q.w;
+                    orientationEnd[i*4] = q.x; orientationEnd[i*4+1] = q.y; orientationEnd[i*4+2] = q.z; orientationEnd[i*4+3] = q.w;
+
+                    // Color variation
+                    const c = (shape.type === 'box') ? CONFIG.colors.gold : 
+                              (Math.random() > 0.5 ? CONFIG.colors.red : CONFIG.colors.silver);
+                    mesh.setColorAt(i, c);
+                }
+
+                mesh.geometry.setAttribute('aStartPos', new THREE.InstancedBufferAttribute(startPos, 3));
+                mesh.geometry.setAttribute('aEndPos', new THREE.InstancedBufferAttribute(endPos, 3));
+                mesh.geometry.setAttribute('aOrientationStart', new THREE.InstancedBufferAttribute(orientationStart, 4));
+                mesh.geometry.setAttribute('aOrientationEnd', new THREE.InstancedBufferAttribute(orientationEnd, 4));
+
+                // We need type to determine "Weight" (speed of interpolation)
+                mesh.userData.type = shape.type; 
+                scene.add(mesh);
+                ornaments.push(mesh);
+            });
+        }
+
+        // --- System 3: Polaroid Gallery ---
+        const photoGroup = new THREE.Group();
+        scene.add(photoGroup);
+        const polaroids = [];
+
+        function createPolaroidTexture(image) {
+            const cvs = document.createElement('canvas');
+            const ctx = cvs.getContext('2d');
+            cvs.width = 512; cvs.height = 640;
+            
+            // White Border
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, 512, 640);
+            
+            // Image
+            const aspect = image.width / image.height;
+            let dw = 460, dh = 460;
+            if (aspect > 1) dh = dw / aspect;
+            else dw = dh * aspect;
+            
+            ctx.drawImage(image, (512-dw)/2, 40, dw, dh);
+            
+            // Shadow gradient at bottom
+            ctx.font = "40px 'Cinzel'";
+            ctx.fillStyle = "#333";
+            ctx.textAlign = "center";
+            ctx.fillText("Memories", 256, 600);
+
+            const tex = new THREE.CanvasTexture(cvs);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            return tex;
+        }
+
+        function addPhoto(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const tex = createPolaroidTexture(img);
+                    const geometry = new THREE.PlaneGeometry(5, 6.25);
+                    const material = new THREE.MeshStandardMaterial({
+                        map: tex,
+                        side: THREE.DoubleSide,
+                        roughness: 0.4,
+                        metalness: 0.1
+                    });
+                    const mesh = new THREE.Mesh(geometry, material);
+                    
+                    // Calculate Positions
+                    const idx = polaroids.length;
+                    const total = polaroids.length + 1;
+                    
+                    // We need to re-layout previous photos or just append spirally
+                    // Simple Spiral Append
+                    const h = CONFIG.treeHeight * 0.8;
+                    const y = -h/2 + (idx * 4); // Stack up
+                    const r = (1 - (y + h/2)/h) * CONFIG.treeRadius + 5;
+                    const theta = idx * 1.5;
+
+                    mesh.userData = {
+                        startPos: new THREE.Vector3(r * Math.cos(theta), y, r * Math.sin(theta)),
+                        startRot: new THREE.Euler(0, -theta - Math.PI/2, 0), // Face outwards
+                        endPos: new THREE.Vector3(
+                            (Math.random()-0.5)*100,
+                            (Math.random()-0.5)*100,
+                            (Math.random()-0.5)*100
+                        ),
+                        endRot: new THREE.Euler(Math.random()*6, Math.random()*6, Math.random()*6)
+                    };
+
+                    polaroids.push(mesh);
+                    photoGroup.add(mesh);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        document.getElementById('upload-input').addEventListener('change', (e) => {
+            for(let file of e.target.files) addPhoto(file);
+        });
+
+        // --- Animation Logic ---
+        const clock = new THREE.Clock();
+        
+        function updatePhysics() {
+            // Smoothly move targetProgress based on interaction
+            // Weighted Interpolation Logic:
+            // Foliage moves fastest (Weight 0.1), Balls medium (0.05), Gifts slow (0.02)
+            
+            // 1. Update master weights
+            state.actualProgress.foliage += (state.targetProgress - state.actualProgress.foliage) * 0.1;
+            state.actualProgress.ornaments += (state.targetProgress - state.actualProgress.ornaments) * 0.05;
+            state.actualProgress.gifts += (state.targetProgress - state.actualProgress.gifts) * 0.02;
+            state.actualProgress.photos += (state.targetProgress - state.actualProgress.photos) * 0.06;
+
+            // 2. Update Foliage Shader
+            if(foliageSystem) {
+                foliageSystem.material.uniforms.uProgress.value = state.actualProgress.foliage;
+                foliageSystem.material.uniforms.uTime.value = clock.getElapsedTime();
+            }
+
+            // 3. Update Ornaments Shaders
+            ornaments.forEach(mesh => {
+                if(mesh.material.userData.shader) {
+                    const prog = mesh.userData.type === 'box' ? state.actualProgress.gifts : state.actualProgress.ornaments;
+                    mesh.material.userData.shader.uniforms.uProgress.value = prog;
+                }
+            });
+
+            // 4. Update Photos (CPU Animation)
+            const photoProg = state.actualProgress.photos;
+            polaroids.forEach(mesh => {
+                // Pos
+                mesh.position.lerpVectors(mesh.userData.startPos, mesh.userData.endPos, photoProg);
+                
+                // Rot: If Chaos, look at camera, else spiral
+                if (photoProg > 0.8) {
+                    mesh.lookAt(camera.position);
+                    mesh.scale.setScalar(1 + photoProg * 2); // Scale up to 3x
+                } else {
+                    // Slerp rotation manually or simple lerp for Euler
+                    mesh.rotation.x = mesh.userData.startRot.x * (1-photoProg) + mesh.userData.endRot.x * photoProg;
+                    mesh.rotation.y = mesh.userData.startRot.y * (1-photoProg) + mesh.userData.endRot.y * photoProg;
+                    mesh.rotation.z = mesh.userData.startRot.z * (1-photoProg) + mesh.userData.endRot.z * photoProg;
+                    mesh.scale.setScalar(1);
+                }
+            });
+
+            // Hand Rotation Control
+            if (state.handActive) {
+                // controls.autoRotate = false; // Disable auto rotate if hand is controlling
+                scene.rotation.y += state.rotationOffset * 0.05;
+            }
+        }
+
+        // --- Render Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            updatePhysics();
+            controls.update();
+            composer.render();
+        }
+
+        // --- Interaction & MediaPipe ---
+        const slider = document.getElementById('chaos-slider');
+        const statusText = document.getElementById('status');
+        
+        // Manual Control
+        slider.addEventListener('input', (e) => {
+            state.targetProgress = parseFloat(e.target.value);
+            updateStatusText(state.targetProgress);
+        });
+
+        function updateStatusText(val) {
+            if(val < 0.1) statusText.innerText = "State: FORMED (Tree)";
+            else if(val > 0.9) statusText.innerText = "State: CHAOS (Unleashed)";
+            else statusText.innerText = "State: TRANSITIONING...";
+        }
+
+        // MediaPipe Setup
+        async function setupMediaPipe() {
+            const videoElement = document.getElementById('input-video');
+            const hands = new Hands({locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            }});
+            
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            hands.onResults(results => {
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    state.handActive = true;
+                    const landmarks = results.multiHandLandmarks[0];
+                    
+                    // Gesture Logic:
+                    // Calculate average distance from wrist (0) to tips (8, 12, 16, 20)
+                    const wrist = landmarks[0];
+                    let totalDist = 0;
+                    [8, 12, 16, 20].forEach(idx => {
+                        const p = landmarks[idx];
+                        totalDist += Math.sqrt(Math.pow(p.x-wrist.x,2) + Math.pow(p.y-wrist.y,2));
+                    });
+                    const avgDist = totalDist / 4;
+
+                    // Open Palm (>0.3) vs Fist (<0.15) approx
+                    // Smooth mapping
+                    if (avgDist > 0.35) { // Open
+                        state.targetProgress = 1;
+                        slider.value = 1;
+                        updateStatusText(1);
+                    } else if (avgDist < 0.2) { // Fist
+                        state.targetProgress = 0;
+                        slider.value = 0;
+                        updateStatusText(0);
+                    }
+
+                    // Rotation Control (Hand X Position)
+                    // Center = 0.5. Left > 0.5 (Mirror), Right < 0.5
+                    const handX = landmarks[9].x; // Middle finger knuckle
+                    state.rotationOffset = (handX - 0.5) * 2; // -1 to 1
+
+                } else {
+                    state.handActive = false;
+                }
+            });
+
+            try {
+                const cameraUtils = new Camera(videoElement, {
+                    onFrame: async () => { await hands.send({image: videoElement}); },
+                    width: 640, height: 480
+                });
+                await cameraUtils.start();
+                console.log("Camera started");
+            } catch (e) {
+                console.error("Camera failed", e);
+                const errDiv = document.getElementById('error-msg');
+                errDiv.innerText = "Camera access unavailable. Falling back to slider controls.";
+                errDiv.style.display = 'block';
+            }
+        }
+
+        // --- Initialization ---
+        async function init() {
+            await setupEnvironment();
+            createFoliage();
+            createOrnaments();
+            
+            // Remove Loader
+            document.getElementById('loader').style.opacity = 0;
+            setTimeout(() => document.getElementById('loader').remove(), 1000);
+
+            animate();
+
+            // Try starting camera (requires HTTPS)
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                setupMediaPipe();
+            } else {
+                document.getElementById('error-msg').innerText = "HTTPS required for Hand Control.";
+                document.getElementById('error-msg').style.display = 'block';
+            }
+        }
+
+        init();
+
+        // Handle Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+</html>
